@@ -2,7 +2,7 @@
 
 Decide whether hunting revenant weapon drops (Craw's bow, Thammaron's sceptre, Viggora's chainmace) in Old School RuneScape is faster **on a Krystilia slayer task** (via Turael skipping) or **off task** — and what the trade-off costs you.
 
-**Use it here: https://trackingse.github.io/rev-calculator/**
+**Use it here: https://seismic80.github.io/rev-calculator/**
 
 ## What it shows
 
