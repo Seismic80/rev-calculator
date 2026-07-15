@@ -150,6 +150,20 @@
       </div>
     </div>
     <div class="card">
+      <h2>Slayer XP (Turael fillers)</h2>
+      <details id="turaelDetails">
+        <summary style="cursor:pointer;font-size:13px;color:var(--muted);margin-bottom:8px;">Turael tasks you <b>don't</b> receive (blocked / level-locked)</summary>
+        <div class="radio-group" id="turaelList" style="grid-template-columns:1fr 1fr;margin:8px 0;"></div>
+      </details>
+      <label class="field" style="margin-top:10px;"><span class="lbl">Average Turael task size (kills)</span>
+        <input type="number" id="turaelSize" min="0" step="0.1">
+      </label>
+      <label class="field"><span class="lbl">Average Slayer XP per Turael kill</span>
+        <input type="number" id="turaelXp" min="0" step="0.1">
+        <div class="hint">Both auto-filled as weighted averages over your receivable Turael tasks; edit freely.</div>
+      </label>
+    </div>
+    <div class="card">
       <h2>Prices</h2>
       <div class="price-bar">
         <button id="refreshPrices">Refresh prices</button>
@@ -170,6 +184,12 @@
     </div>
 
     <div class="card">
+      <h2>Slayer XP lost by hunting off task</h2>
+      <p class="hint" id="xpIntro" style="margin-top:0;"></p>
+      <table id="xpTable"></table>
+    </div>
+
+    <div class="card">
       <h2>Loot forgone by skipping</h2>
       <p class="hint" id="lootIntro" style="margin-top:0;"></p>
       <div style="overflow-x:auto;"><table id="lootTable"></table></div>
@@ -185,7 +205,9 @@
         <li>Ancient artefact / seed / dragon med helm rates don't depend on task status. Skulled shifts that table (most artefacts &asymp;1.8&times; more common, ancient emblem rarer, dragon med helm unobtainable). <a href="https://oldschool.runescape.wiki/w/Template:Revenants/Drops" target="_blank" rel="noopener">source</a></li>
         <li>Coins are dropped only by revenants below combat 132 (chance (A&minus;B)/A per the wiki drop lines, B = 15 + floor((combat+60)&sup2;/200)); revenant dragons drop none.</li>
         <li>Krystilia revenant tasks: 40&ndash;100 kills (avg 70), or 100&ndash;150 (avg 125) with the Revenenhanced extension. Task weight 5/196. <a href="https://oldschool.runescape.wiki/w/Krystilia" target="_blank" rel="noopener">Krystilia</a></li>
-        <li>Not counted in favour of skipping: on-task kills also roll the <a href="https://oldschool.runescape.wiki/w/Wilderness_Slayer" target="_blank" rel="noopener">Wilderness Slayer tertiary table</a> (Larran's keys etc.) and give Slayer XP/points, so the true loot gap is somewhat smaller than shown.</li>
+        <li>Revenants give Slayer XP &ne; max HP: it's hp &times; (1 + species XP bonus) per each species' wiki infobox — e.g. dragon 155 hp but <b>186</b> XP, hobgoblin 72 hp / 73 XP, imp 10/10.</li>
+        <li>Turael filler XP assumes one completed Turael task per non-rev Krystilia roll (Turael can only replace a task once, so fillers must be finished before re-rolling). Per-task kill counts and weights from <a href="https://oldschool.runescape.wiki/w/Turael/Slayer_assignments" target="_blank" rel="noopener">Turael's assignment list</a>; XP/kill uses the variant at the wiki's suggested farming spot. Blocks are account-wide, so a blocked monster is also never assigned by Turael.</li>
+        <li>Not counted in favour of skipping: on-task kills also roll the <a href="https://oldschool.runescape.wiki/w/Wilderness_Slayer" target="_blank" rel="noopener">Wilderness Slayer tertiary table</a> (Larran's keys etc.), so the true loot gap is somewhat smaller than shown.</li>
         <li>Tradeable drops are valued at max(GE mid-price, high alch), the wiki's convention. Ancient artefacts use GE price (Emblem Trader pays slightly more: 500k&ndash;16m).</li>
       </ul>
     </div>
@@ -207,30 +229,66 @@
    The uniqueOn/uniqueOffs below are the exact denominators printed in each
    species' wiki footnotes. Calculations use off = on * 5 exactly (the wiki's
    26.667 is an independent rounding of 5 * 5.333).
+   slayxp = Slayer XP per kill from each species' infobox. Revenants do NOT
+   give exactly their max HP: it's hp × (1 + xp bonus), e.g. dragon 155 hp
+   but 186 Slayer XP, imp 10/10, hobgoblin 72 hp / 73 XP.
    ===================================================================== */
 const SPECIES = [
   // source: https://oldschool.runescape.wiki/w/Revenant_imp
-  { key:'imp',       name:'Revenant imp',        combat:7,   A:1100, onUnsk:5866.3,  offUnsk:29333.7, onSk:3226.3, offSk:16133.7, kph:250 },
+  { key:'imp',       name:'Revenant imp',        combat:7,   A:1100, onUnsk:5866.3,  offUnsk:29333.7, onSk:3226.3, offSk:16133.7, slayxp:10,  kph:250 },
   // source: https://oldschool.runescape.wiki/w/Revenant_goblin
-  { key:'goblin',    name:'Revenant goblin',     combat:15,  A:733,  onUnsk:3909.09, offUnsk:19546.91, onSk:2149.89, offSk:10750.91, kph:220 },
+  { key:'goblin',    name:'Revenant goblin',     combat:15,  A:733,  onUnsk:3909.09, offUnsk:19546.91, onSk:2149.89, offSk:10750.91, slayxp:14,  kph:220 },
   // source: https://oldschool.runescape.wiki/w/Revenant_pyrefiend
-  { key:'pyrefiend', name:'Revenant pyrefiend',  combat:52,  A:314,  onUnsk:1674.56, offUnsk:8373.44, onSk:920.96, offSk:4605.44, kph:180 },
+  { key:'pyrefiend', name:'Revenant pyrefiend',  combat:52,  A:314,  onUnsk:1674.56, offUnsk:8373.44, onSk:920.96, offSk:4605.44, slayxp:48,  kph:180 },
   // source: https://oldschool.runescape.wiki/w/Revenant_hobgoblin
-  { key:'hobgoblin', name:'Revenant hobgoblin',  combat:60,  A:314,  onUnsk:1674.56, offUnsk:8373.44, onSk:920.96, offSk:4605.44, kph:170 },
+  { key:'hobgoblin', name:'Revenant hobgoblin',  combat:60,  A:314,  onUnsk:1674.56, offUnsk:8373.44, onSk:920.96, offSk:4605.44, slayxp:73,  kph:170 },
   // source: https://oldschool.runescape.wiki/w/Revenant_cyclops
-  { key:'cyclops',   name:'Revenant cyclops',    combat:82,  A:244,  onUnsk:1301.25, offUnsk:6506.75, onSk:715.65, offSk:3578.75, kph:150 },
+  { key:'cyclops',   name:'Revenant cyclops',    combat:82,  A:244,  onUnsk:1301.25, offUnsk:6506.75, onSk:715.65, offSk:3578.75, slayxp:119, kph:150 },
   // source: https://oldschool.runescape.wiki/w/Revenant_hellhound
-  { key:'hellhound', name:'Revenant hellhound',  combat:90,  A:244,  onUnsk:1301.25, offUnsk:6506.75, onSk:715.65, offSk:3578.75, kph:150 },
+  { key:'hellhound', name:'Revenant hellhound',  combat:90,  A:244,  onUnsk:1301.25, offUnsk:6506.75, onSk:715.65, offSk:3578.75, slayxp:86,  kph:150 },
   // source: https://oldschool.runescape.wiki/w/Revenant_demon
-  { key:'demon',     name:'Revenant demon',      combat:98,  A:244,  onUnsk:1301.25, offUnsk:6506.75, onSk:715.65, offSk:3578.75, kph:140 },
+  { key:'demon',     name:'Revenant demon',      combat:98,  A:244,  onUnsk:1301.25, offUnsk:6506.75, onSk:715.65, offSk:3578.75, slayxp:86,  kph:140 },
   // source: https://oldschool.runescape.wiki/w/Revenant_ork
-  { key:'ork',       name:'Revenant ork',        combat:105, A:220,  onUnsk:1173.26, offUnsk:5866.74, onSk:645.26, offSk:3226.74, kph:130 },
+  { key:'ork',       name:'Revenant ork',        combat:105, A:220,  onUnsk:1173.26, offUnsk:5866.74, onSk:645.26, offSk:3226.74, slayxp:115, kph:130 },
   // source: https://oldschool.runescape.wiki/w/Revenant_dark_beast
-  { key:'darkbeast', name:'Revenant dark beast', combat:120, A:220,  onUnsk:1173.26, offUnsk:5866.74, onSk:645.26, offSk:3226.74, kph:110 },
+  { key:'darkbeast', name:'Revenant dark beast', combat:120, A:220,  onUnsk:1173.26, offUnsk:5866.74, onSk:645.26, offSk:3226.74, slayxp:157, kph:110 },
   // source: https://oldschool.runescape.wiki/w/Revenant_knight
-  { key:'knight',    name:'Revenant knight',     combat:126, A:200,  onUnsk:1066.6,  offUnsk:5333.4,  onSk:586.6,  offSk:2933.4,  kph:100 },
+  { key:'knight',    name:'Revenant knight',     combat:126, A:200,  onUnsk:1066.6,  offUnsk:5333.4,  onSk:586.6,  offSk:2933.4,  slayxp:168, kph:100 },
   // source: https://oldschool.runescape.wiki/w/Revenant_dragon
-  { key:'dragon',    name:'Revenant dragon',     combat:135, A:200,  onUnsk:1066.6,  offUnsk:5333.4,  onSk:586.6,  offSk:2933.4,  kph:90 },
+  { key:'dragon',    name:'Revenant dragon',     combat:135, A:200,  onUnsk:1066.6,  offUnsk:5333.4,  onSk:586.6,  offSk:2933.4,  slayxp:186, kph:90 },
+];
+
+/* Turael filler tasks completed during skip cycles.
+   source: https://oldschool.runescape.wiki/w/Turael/Slayer_assignments
+   [name, avg kills (midpoint of assigned range), Slayer XP per kill, weight]
+   XP per kill is the monster's Slayer XP (its hitpoints) for the variant
+   usually killed at the wiki's suggested farming spot — e.g. jackals for
+   Dogs, kalphite workers, small lizards, giant rats. Total weight 172. */
+const TURAEL_TASKS = [
+  ['Banshees',      22.5, 22, 8],
+  ['Bats',          22.5,  8, 7],
+  ['Bears',         15,   27, 7],
+  ['Birds',         22.5,  3, 6],
+  ['Cave bugs',     20,    5, 8],
+  ['Cave crawlers', 22.5, 22, 8],
+  ['Cave slimes',   15,   25, 8],
+  ['Cows',          22.5,  8, 8],
+  ['Crawling Hands',22.5, 16, 8],
+  ['Dogs',          22.5, 27, 7],
+  ['Dwarves',       17.5, 16, 7],
+  ['Ghosts',        22.5, 25, 7],
+  ['Goblins',       22.5,  5, 7],
+  ['Icefiends',     17.5, 15, 8],
+  ['Kalphite',      22.5, 40, 6],
+  ['Lizards',       22.5, 15, 8],
+  ['Minotaurs',     15,   10, 7],
+  ['Monkeys',       22.5,  3, 6],
+  ['Rats',          22.5,  5, 7],
+  ['Scorpions',     22.5, 17, 7],
+  ['Skeletons',     22.5, 24, 7],
+  ['Spiders',       22.5,  2, 6],
+  ['Wolves',        22.5, 15, 7],
+  ['Zombies',       22.5, 22, 7],
 ];
 
 /* Item ids from https://prices.runescape.wiki/api/v1/osrs/mapping
@@ -367,6 +425,26 @@ const $ = id => document.getElementById(id);
 let excluded = new Set();
 try { excluded = new Set(JSON.parse(localStorage.getItem('revcalc-excluded') || '[]')); } catch (e) {}
 
+/* Turael tasks the player never receives (blocked or level-locked). */
+let turaelBlocked = new Set();
+try { turaelBlocked = new Set(JSON.parse(localStorage.getItem('revcalc-turael-blocked') || '[]')); } catch (e) {}
+
+/* Weighted averages over the receivable Turael pool → default inputs. */
+function turaelAverages() {
+  let w = 0, kills = 0, xp = 0;
+  for (const [name, size, xpKill, weight] of TURAEL_TASKS) {
+    if (turaelBlocked.has(name)) continue;
+    w += weight; kills += weight * size; xp += weight * size * xpKill;
+  }
+  if (w === 0) return { size: 0, xpKill: 0 };
+  return { size: kills / w, xpKill: xp / kills };
+}
+function applyTuraelDefaults() {
+  const a = turaelAverages();
+  $('turaelSize').value = a.size.toFixed(1);
+  $('turaelXp').value = a.xpKill.toFixed(1);
+}
+
 function price(name) {
   const it = ITEMS[name];
   let ge = it.snap;
@@ -457,10 +535,20 @@ function compute() {
   const minChance = skips > 0 && kph > 0 ? acqNeeded / skips : Infinity;
   const minSkips = taskChance > 0 && kph > 0 ? acqNeeded / taskChance : Infinity;
 
+  // Slayer XP earned on the skipping route (off task earns none):
+  // every non-rev Krystilia roll becomes a completed Turael filler task.
+  const turaelSize = Math.max(0, parseFloat($('turaelSize').value) || 0);
+  const turaelXpKill = Math.max(0, parseFloat($('turaelXp').value) || 0);
+  const fillerTasks = taskChance > 0 ? tasksNeeded * (1 / taskChance - 1) : Infinity;
+  const turaelXP = fillerTasks * turaelSize * turaelXpKill;
+  const revXP = kOn * sp.slayxp;
+  const slayerXP = revXP + turaelXP;
+
   return { sp, kph, taskChance, skips, taskSize, skulled, target,
            uniqueOn, uniqueOff, rOn, rOff, kOn, kOff,
            hoursPerTask, tasksNeeded, killHoursOn, overheadOn, totalOn, totalOff,
-           acqRate, acqNeeded, minChance, minSkips };
+           acqRate, acqNeeded, minChance, minSkips,
+           turaelSize, turaelXpKill, fillerTasks, turaelXP, revXP, slayerXP };
 }
 
 /* ===================== rendering ===================== */
@@ -469,7 +557,25 @@ function render() {
   const loot = renderLoot(m);
   renderVerdict(m, loot);
   renderComparison(m);
+  renderSlayerXP(m);
   selfTest(m);
+}
+
+function renderSlayerXP(m) {
+  $('xpIntro').innerHTML = 'Off-task revenant kills award <b>no Slayer XP</b>. The skipping route earns XP twice over: ' +
+    'the revenant task kills themselves, and the small Turael filler task completed on every non-rev Krystilia roll. ' +
+    '(Turael tasks reset your streak, so no Slayer points either way.)';
+  const fin = isFinite(m.fillerTasks);
+  const rows = [
+    ['Revenant kills on task', fmtNum(m.kOn) + ' kills × ' + m.sp.slayxp + ' XP', fmtNum(m.revXP)],
+    ['Turael filler tasks', (fin ? fmtNum(m.fillerTasks) : '∞') + ' tasks × ' + fmtNum(m.turaelSize, 1) + ' kills × ' +
+      fmtNum(m.turaelXpKill, 1) + ' XP', fin ? fmtNum(m.turaelXP) : '∞'],
+  ];
+  $('xpTable').innerHTML =
+    '<thead><tr><th>Source</th><th>Expected</th><th>Slayer XP</th></tr></thead><tbody>' +
+    rows.map(r => '<tr><td>' + r[0] + '</td><td class="num">' + r[1] + '</td><td class="num">' + r[2] + '</td></tr>').join('') +
+    '<tr class="grand"><td colspan="2">Total Slayer XP lost per weapon by hunting off task</td><td class="num">' +
+    (fin ? fmtNum(m.slayerXP) : '∞') + '</td></tr></tbody>';
 }
 
 function renderVerdict(m, loot) {
@@ -508,6 +614,9 @@ function renderVerdict(m, loot) {
     '<div class="stat"><div class="k">Loot forgone &divide; hours saved</div><div class="v">' +
       (saved > 0 ? fmtGP(loot.grand / saved) + '/hr' : '&mdash;') +
       '</div><div class="n">' + (saved > 0 ? 'off task must beat this GP/hr to be worth the extra time' : 'skipping saves no time here') + '</div></div>' +
+    '<div class="stat"><div class="k">Slayer XP lost off task</div><div class="v">' +
+      (isFinite(m.slayerXP) ? fmtNum(m.slayerXP) : '&mdash;') +
+      '</div><div class="n">rev task kills + Turael fillers</div></div>' +
     '</div>';
   el.innerHTML = html;
 }
@@ -622,6 +731,9 @@ function selfTest(m) {
   t.push(['All species match wiki formula A=floor(2200/floor(√cb))', formulaOK]);
   // 4. Zero-input guards produce finite or cleanly-infinite results, never NaN.
   t.push(['0% task chance / 0 skips handled', !Number.isNaN(m.totalOn) && !Number.isNaN(m.totalOff)]);
+  // 5. Turael pool: weights sum to 172 (wiki assignment list) and XP is never NaN.
+  t.push(['Turael task weights sum to 172', TURAEL_TASKS.reduce((a, t2) => a + t2[3], 0) === 172],
+         ['Slayer XP totals never NaN', !Number.isNaN(m.slayerXP)]);
   $('selftest').innerHTML = '<h2>Self-checks</h2>' + t.map(([n, ok]) =>
     '<div class="' + (ok ? 'ok' : 'fail') + '">' + (ok ? '✓' : '✗ FAIL') + ' ' + n + '</div>').join('');
 }
@@ -667,7 +779,21 @@ function init() {
     $('taskSize').value = $('extend').checked ? 125 : 70; // Krystilia: avg of 100-150 / 40-100
     render();
   });
-  for (const id of ['kph', 'taskChance', 'skipsPerHour', 'taskSize', 'skulled'])
+  $('turaelList').innerHTML = TURAEL_TASKS.map(([name, size, xpKill, weight]) =>
+    '<label title="avg ' + size + ' kills × ' + xpKill + ' XP, weight ' + weight + '/172">' +
+    '<input type="checkbox" data-turael="' + name + '"' + (turaelBlocked.has(name) ? ' checked' : '') + '> ' + name + '</label>'
+  ).join('');
+  $('turaelList').addEventListener('change', e => {
+    const name = e.target.dataset.turael;
+    if (!name) return;
+    if (e.target.checked) turaelBlocked.add(name); else turaelBlocked.delete(name);
+    try { localStorage.setItem('revcalc-turael-blocked', JSON.stringify([...turaelBlocked])); } catch (err) {}
+    applyTuraelDefaults();
+    render();
+  });
+  applyTuraelDefaults();
+
+  for (const id of ['kph', 'taskChance', 'skipsPerHour', 'taskSize', 'skulled', 'turaelSize', 'turaelXp'])
     $(id).addEventListener('input', render);
   document.querySelectorAll('input[name=target]').forEach(r => r.addEventListener('change', render));
   $('refreshPrices').addEventListener('click', refreshPrices);
