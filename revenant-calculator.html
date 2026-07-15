@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Revenant Weapon Hunt — On-Task vs Off-Task Calculator</title>
+<style>
+  :root {
+    --bg: #14120f;
+    --panel: #1e1b16;
+    --panel2: #26221b;
+    --border: #3a342a;
+    --text: #e8e2d4;
+    --muted: #9d947f;
+    --accent: #d4af37;
+    --good: #6fce6f;
+    --bad: #e06c5a;
+    --link: #94b8e0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 "Segoe UI", system-ui, sans-serif;
+    padding: 24px 16px 64px;
+  }
+  a { color: var(--link); }
+  h1 { font-size: 22px; margin: 0 0 4px; color: var(--accent); }
+  .sub { color: var(--muted); margin: 0 0 20px; font-size: 13px; }
+  .layout { display: grid; grid-template-columns: 340px 1fr; gap: 20px; max-width: 1200px; margin: 0 auto; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .card h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 12px; }
+  label.field { display: block; margin-bottom: 12px; font-size: 13px; color: var(--muted); }
+  label.field span.lbl { display: block; margin-bottom: 3px; }
+  input[type=number], select {
+    width: 100%;
+    background: var(--panel2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 9px;
+    font-size: 14px;
+  }
+  input:focus, select:focus { outline: 1px solid var(--accent); }
+  .toggle-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 14px; }
+  .toggle-row input { width: 16px; height: 16px; accent-color: var(--accent); }
+  .radio-group { display: grid; gap: 6px; margin-bottom: 4px; }
+  .radio-group label { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+  .radio-group input { accent-color: var(--accent); }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .verdict {
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+  }
+  .verdict .headline { font-size: 19px; font-weight: 600; }
+  .verdict.faster .headline { color: var(--good); }
+  .verdict.slower .headline { color: var(--bad); }
+  .verdict .detail { color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  tr.group-head td { color: var(--accent); font-weight: 600; padding-top: 12px; border-bottom: 1px solid var(--accent); }
+  tr.subtotal td { font-weight: 600; background: var(--panel2); }
+  tr.grand td { font-weight: 700; font-size: 15px; color: var(--accent); background: var(--panel2); border-top: 2px solid var(--accent); }
+  td.num { font-variant-numeric: tabular-nums; }
+  .cmp-on { color: var(--good); }
+  .cmp-off { color: #e0b46c; }
+  .price-bar { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--muted); flex-wrap: wrap; }
+  button {
+    background: var(--panel2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 12px; font-size: 13px; cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  .foot { font-size: 12px; color: var(--muted); line-height: 1.7; }
+  .foot li { margin-bottom: 4px; }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 10px; }
+  .stat { background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
+  .stat .k { font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat .v { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stat .n { font-size: 11.5px; color: var(--muted); }
+  tr.loot-row { cursor: pointer; }
+  tr.loot-row:hover td { background: rgba(212, 175, 55, 0.08); }
+  tr.loot-row.excluded td { color: var(--muted); text-decoration: line-through; opacity: 0.65; }
+  .selftest { font-size: 11.5px; color: var(--muted); }
+  .selftest .ok { color: var(--good); }
+  .selftest .fail { color: var(--bad); font-weight: 700; }
+</style>
+</head>
+<body>
+<div style="max-width:1200px;margin:0 auto;">
+  <h1>Revenant Weapon Hunt: On-Task (Turael Skipping) vs Off-Task</h1>
+  <p class="sub">Should you Turael-skip for Krystilia revenant tasks to hunt Craw's bow / Thammaron's sceptre / Viggora's chainmace, and what does skipping cost you in loot? Mechanics sourced from the <a href="https://oldschool.runescape.wiki/w/Revenants" target="_blank" rel="noopener">OSRS Wiki</a>.</p>
+</div>
+
+<div class="layout">
+  <!-- ============ INPUTS ============ -->
+  <div>
+    <div class="card">
+      <h2>Inputs</h2>
+      <label class="field"><span class="lbl">Revenant species</span>
+        <select id="species"></select>
+      </label>
+      <label class="field"><span class="lbl">Kills per hour</span>
+        <input type="number" id="kph" min="0" step="1">
+        <div class="hint">Your sustained kill rate at this revenant (deaths, banking and world-hops included).</div>
+      </label>
+      <label class="field"><span class="lbl">Chance of a revenants task from Krystilia (%)</span>
+        <input type="number" id="taskChance" min="0" max="100" step="0.1" value="2.6">
+        <div class="hint">Base weight is 5/196 &asymp; 2.6% with nothing blocked; blocking tasks raises it.</div>
+      </label>
+      <label class="field"><span class="lbl">Turael skips per hour</span>
+        <input type="number" id="skipsPerHour" min="0" step="1" value="25">
+        <div class="hint">Full cycles: Krystilia task &rarr; not revs &rarr; reset at Turael &rarr; back to Krystilia.</div>
+      </label>
+      <div class="toggle-row">
+        <input type="checkbox" id="extend" checked>
+        <label for="extend">Extend task (<a href="https://oldschool.runescape.wiki/w/Slayer_reward_point#Extensions" target="_blank" rel="noopener">Revenenhanced</a> unlock)</label>
+      </div>
+      <label class="field"><span class="lbl">Average revenant task size (kills)</span>
+        <input type="number" id="taskSize" min="1" step="1" value="125">
+        <div class="hint">Krystilia assigns 40&ndash;100 (avg 70) unextended, 100&ndash;150 (avg 125) extended.</div>
+      </label>
+      <div class="toggle-row">
+        <input type="checkbox" id="skulled">
+        <label for="skulled">Skulled (&asymp;45% better unique rate, both scenarios)</label>
+      </div>
+      <div class="card" style="padding:10px 12px;margin:0 0 4px;background:var(--panel2);">
+        <span class="lbl" style="font-size:13px;color:var(--muted);">Target</span>
+        <div class="radio-group" id="targetGroup">
+          <label><input type="radio" name="target" value="any" checked> Any weapon</label>
+          <label><input type="radio" name="target" value="craw"> Craw's bow</label>
+          <label><input type="radio" name="target" value="thammaron"> Thammaron's sceptre</label>
+          <label><input type="radio" name="target" value="viggora"> Viggora's chainmace</label>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Prices</h2>
+      <div class="price-bar">
+        <button id="refreshPrices">Refresh prices</button>
+        <span id="priceStatus">Using bundled snapshot.</span>
+      </div>
+    </div>
+    <div class="card selftest" id="selftest"></div>
+  </div>
+
+  <!-- ============ RESULTS ============ -->
+  <div>
+    <div class="verdict" id="verdict"></div>
+
+    <div class="card">
+      <h2>On-task vs off-task per weapon drop</h2>
+      <table id="cmpTable"></table>
+      <div class="stat-grid" id="breakEven"></div>
+    </div>
+
+    <div class="card">
+      <h2>Loot forgone by skipping</h2>
+      <p class="hint" id="lootIntro" style="margin-top:0;"></p>
+      <div style="overflow-x:auto;"><table id="lootTable"></table></div>
+    </div>
+
+    <div class="card foot">
+      <h2>Mechanics &amp; notes</h2>
+      <ul>
+        <li>Weapon/unique drop rates are <b>5&times; higher on a Krystilia revenants task</b>; the boost does not apply to a ghosts task. <a href="https://oldschool.runescape.wiki/w/Revenants" target="_blank" rel="noopener">Revenants</a></li>
+        <li>When the unique table is rolled: <b>2/5 amulet of avarice, 1/5 each weapon</b>. Unique table chance is 1/(A&times;26.667) unskulled off task, where A = floor(2200 / floor(&radic;combat)); on task &times;5 better, skulled &times;1/0.55 (&asymp;45%) better, and the two stack. <a href="https://oldschool.runescape.wiki/w/Template:Revenants/Drops" target="_blank" rel="noopener">Template:Revenants/Drops</a></li>
+        <li>Off-task rates are computed as exactly on-task &divide; 5. The wiki footnotes round the multipliers independently (26.667 vs 5&times;5.333), a &lt;0.01% difference.</li>
+        <li>Expected amulets of avarice and non-target weapons obtained en route are <b>identical on- and off-task</b> (5&times; rate exactly offsets 5&times; kills), so they contribute 0 GP to the loot difference.</li>
+        <li>Ancient artefact / seed / dragon med helm rates don't depend on task status. Skulled shifts that table (most artefacts &asymp;1.8&times; more common, ancient emblem rarer, dragon med helm unobtainable). <a href="https://oldschool.runescape.wiki/w/Template:Revenants/Drops" target="_blank" rel="noopener">source</a></li>
+        <li>Coins are dropped only by revenants below combat 132 (chance (A&minus;B)/A per the wiki drop lines, B = 15 + floor((combat+60)&sup2;/200)); revenant dragons drop none.</li>
+        <li>Krystilia revenant tasks: 40&ndash;100 kills (avg 70), or 100&ndash;150 (avg 125) with the Revenenhanced extension. Task weight 5/196. <a href="https://oldschool.runescape.wiki/w/Krystilia" target="_blank" rel="noopener">Krystilia</a></li>
+        <li>Not counted in favour of skipping: on-task kills also roll the <a href="https://oldschool.runescape.wiki/w/Wilderness_Slayer" target="_blank" rel="noopener">Wilderness Slayer tertiary table</a> (Larran's keys etc.) and give Slayer XP/points, so the true loot gap is somewhat smaller than shown.</li>
+        <li>Tradeable drops are valued at max(GE mid-price, high alch), the wiki's convention. Ancient artefacts use GE price (Emblem Trader pays slightly more: 500k&ndash;16m).</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* =====================================================================
+   DATA — all rates verified against the OSRS Wiki (July 2026).
+   Shared mechanics: https://oldschool.runescape.wiki/w/Template:Revenants/Drops
+     A = floor(2200 / floor(sqrt(combat)))
+     Unique-table chance per kill:
+       off task, unskulled : 1 / (A * 26.667)
+       off task, skulled   : 1 / (A * 14.667)
+       on task,  unskulled : 1 / (A * 5.333)
+       on task,  skulled   : 1 / (A * 2.933)
+     On the unique table: 2/5 amulet of avarice, 1/5 each weapon.
+   The uniqueOn/uniqueOffs below are the exact denominators printed in each
+   species' wiki footnotes. Calculations use off = on * 5 exactly (the wiki's
+   26.667 is an independent rounding of 5 * 5.333).
+   ===================================================================== */
+const SPECIES = [
+  // source: https://oldschool.runescape.wiki/w/Revenant_imp
+  { key:'imp',       name:'Revenant imp',        combat:7,   A:1100, onUnsk:5866.3,  offUnsk:29333.7, onSk:3226.3, offSk:16133.7, kph:250 },
+  // source: https://oldschool.runescape.wiki/w/Revenant_goblin
+  { key:'goblin',    name:'Revenant goblin',     combat:15,  A:733,  onUnsk:3909.09, offUnsk:19546.91, onSk:2149.89, offSk:10750.91, kph:220 },
+  // source: https://oldschool.runescape.wiki/w/Revenant_pyrefiend
+  { key:'pyrefiend', name:'Revenant pyrefiend',  combat:52,  A:314,  onUnsk:1674.56, offUnsk:8373.44, onSk:920.96, offSk:4605.44, kph:180 },
+  // source: https://oldschool.runescape.wiki/w/Revenant_hobgoblin
+  { key:'hobgoblin', name:'Revenant hobgoblin',  combat:60,  A:314,  onUnsk:1674.56, offUnsk:8373.44, onSk:920.96, offSk:4605.44, kph:170 },
+  // source: https://oldschool.runescape.wiki/w/Revenant_cyclops
+  { key:'cyclops',   name:'Revenant cyclops',    combat:82,  A:244,  onUnsk:1301.25, offUnsk:6506.75, onSk:715.65, offSk:3578.75, kph:150 },
+  // source: https://oldschool.runescape.wiki/w/Revenant_hellhound
+  { key:'hellhound', name:'Revenant hellhound',  combat:90,  A:244,  onUnsk:1301.25, offUnsk:6506.75, onSk:715.65, offSk:3578.75, kph:150 },
+  // source: https://oldschool.runescape.wiki/w/Revenant_demon
+  { key:'demon',     name:'Revenant demon',      combat:98,  A:244,  onUnsk:1301.25, offUnsk:6506.75, onSk:715.65, offSk:3578.75, kph:140 },
+  // source: https://oldschool.runescape.wiki/w/Revenant_ork
+  { key:'ork',       name:'Revenant ork',        combat:105, A:220,  onUnsk:1173.26, offUnsk:5866.74, onSk:645.26, offSk:3226.74, kph:130 },
+  // source: https://oldschool.runescape.wiki/w/Revenant_dark_beast
+  { key:'darkbeast', name:'Revenant dark beast', combat:120, A:220,  onUnsk:1173.26, offUnsk:5866.74, onSk:645.26, offSk:3226.74, kph:110 },
+  // source: https://oldschool.runescape.wiki/w/Revenant_knight
+  { key:'knight',    name:'Revenant knight',     combat:126, A:200,  onUnsk:1066.6,  offUnsk:5333.4,  onSk:586.6,  offSk:2933.4,  kph:100 },
+  // source: https://oldschool.runescape.wiki/w/Revenant_dragon
+  { key:'dragon',    name:'Revenant dragon',     combat:135, A:200,  onUnsk:1066.6,  offUnsk:5333.4,  onSk:586.6,  offSk:2933.4,  kph:90 },
+];
+
+/* Item ids from https://prices.runescape.wiki/api/v1/osrs/mapping
+   Snapshot prices: mid of high/low from /api/v1/osrs/latest, 15 July 2026.
+   ha = high alch value (fixed). Tradeables valued at max(GE, HA). */
+const ITEMS = {
+  'Amulet of avarice':               { id:22557, snap:416914,   ha:27000 },
+  "Craw's bow (u)":                  { id:22547, snap:16860625, ha:72000 },
+  "Thammaron's sceptre (u)":         { id:22552, snap:3500258,  ha:72000 },
+  "Viggora's chainmace (u)":         { id:22542, snap:5108174,  ha:72000 },
+  'Ancient emblem':                  { id:21807, snap:498751,   ha:300000 },
+  'Ancient totem':                   { id:21810, snap:997501,   ha:600000 },
+  'Ancient statuette':               { id:21813, snap:1997316,  ha:1200000 },
+  'Ancient crystal':                 { id:21804, snap:150644,   ha:150000 },
+  'Ancient medallion':               { id:22299, snap:3994017,  ha:2400000 },
+  'Ancient effigy':                  { id:22302, snap:7988012,  ha:4800000 },
+  'Ancient relic':                   { id:22305, snap:15975292, ha:9600000 },
+  'Magic seed':                      { id:5316,  snap:73317,    ha:253 },
+  'Yew seed':                        { id:5315,  snap:21748,    ha:85 },
+  'Dragon med helm':                 { id:1149,  snap:58466,    ha:60000 },
+  'Bracelet of ethereum (uncharged)':{ id:21817, snap:43403,    ha:43200 },
+  'Battlestaff':                     { id:1391,  snap:7406,     ha:4200 },
+  'Rune full helm':                  { id:1163,  snap:20516,    ha:21120 },
+  'Rune platebody':                  { id:1127,  snap:38285,    ha:39000 },
+  'Rune platelegs':                  { id:1079,  snap:37771,    ha:38400 },
+  'Rune kiteshield':                 { id:1201,  snap:32089,    ha:32640 },
+  'Rune warhammer':                  { id:1347,  snap:24205,    ha:24900 },
+  'Dragon platelegs':                { id:4087,  snap:160933,   ha:162000 },
+  'Dragon plateskirt':               { id:4585,  snap:160950,   ha:162000 },
+  'Dragon dagger':                   { id:1215,  snap:17146,    ha:18000 },
+  'Dragon longsword':                { id:1305,  snap:59114,    ha:60000 },
+  'Dragonstone bolt tips':           { id:9193,  snap:433,      ha:400 },
+  'Onyx bolt tips':                  { id:9194,  snap:8050,     ha:600 },
+  'Death rune':                      { id:560,   snap:180,      ha:108 },
+  'Blood rune':                      { id:565,   snap:323,      ha:240 },
+  'Law rune':                        { id:563,   snap:122,      ha:144 },
+  'Coal':                            { id:453,   snap:148,      ha:27 },
+  'Adamantite bar':                  { id:2361,  snap:1902,     ha:384 },
+  'Runite ore':                      { id:451,   snap:10181,    ha:1920 },
+  'Runite bar':                      { id:2363,  snap:12259,    ha:3000 },
+  'Black dragonhide':                { id:1747,  snap:3559,     ha:90 },
+  'Mahogany plank':                  { id:8782,  snap:1944,     ha:900 },
+  'Blighted manta ray':              { id:24589, snap:104,      ha:30 },
+  'Yew logs':                        { id:1515,  snap:115,      ha:96 },
+  'Magic logs':                      { id:1513,  snap:813,      ha:192 },
+  'Uncut dragonstone':               { id:1631,  snap:15739,    ha:600 },
+  'Revenant cave teleport':          { id:21802, snap:683,      ha:6 },
+  'Blighted super restore(4)':       { id:24598, snap:2272,     ha:24 },
+  'Revenant ether':                  { id:21820, snap:178,      ha:150 },
+  'Blighted ancient ice sack':       { id:24607, snap:335,      ha:21 },
+  'Blighted entangle sack':          { id:24613, snap:45,       ha:18 },
+  'Blighted teleport spell sack':    { id:24615, snap:63,       ha:19 },
+  'Blighted vengeance sack':         { id:24621, snap:88,       ha:18 },
+  'Blighted anglerfish':             { id:24592, snap:103,      ha:30 },
+  'Blighted karambwan':              { id:24595, snap:57,       ha:30 },
+  'Coins':                           { id:null,  snap:1,        ha:1 },
+};
+let livePrices = null; // id -> gp, when fetched
+
+const WEAPONS = {
+  craw:      "Craw's bow (u)",
+  thammaron: "Thammaron's sceptre (u)",
+  viggora:   "Viggora's chainmace (u)",
+};
+
+/* Regular ("mediocre") table: weight out of 198, average quantity per the
+   wiki's own average-drop-value formula in Template:Revenants/Drops. */
+const MEDIOCRE = [
+  ['Bracelet of ethereum (uncharged)', 1,    30],
+  ['Battlestaff',                      4,    10],
+  ['Rune full helm',                   2,     4],
+  ['Rune platebody',                   2,     4],
+  ['Rune platelegs',                   2,     4],
+  ['Rune kiteshield',                  2,     4],
+  ['Rune warhammer',                   2,     4],
+  ['Dragon platelegs',                 1.5,   1],
+  ['Dragon plateskirt',                1.5,   1],
+  ['Dragon dagger',                    2,     2],
+  ['Dragon longsword',                 2,     2],
+  ['Dragonstone bolt tips',            30,    6],
+  ['Onyx bolt tips',                   4.5,   6],
+  ['Death rune',                       45,   10],
+  ['Blood rune',                       75,   10],
+  ['Law rune',                         32.5, 10],
+  ['Coal',                             45,   12],
+  ['Adamantite bar',                   5,    12],
+  ['Runite ore',                       3,     8],
+  ['Runite bar',                       2.5,   6],
+  ['Black dragonhide',                 4,     8],
+  ['Mahogany plank',                   8.5,   6],
+  ['Blighted manta ray',               12.5,  8],
+  ['Yew logs',                         30,    8],
+  ['Magic logs',                       12,    4],
+  ['Uncut dragonstone',                3.5,   2],
+  ['Revenant cave teleport',           3,    10],
+  ['Blighted super restore(4)',        2,     6],
+];
+
+/* Ancient artefact / seed table: rolled at 1/A per kill, then item weight out
+   of 40 (unskulled) or 22 (skulled). Skulled drops dragon med helm entirely
+   and reduces ancient emblem from 6/40 of the roll to 1/22. */
+const SPECIAL_UNSKULLED = [
+  ['Ancient emblem',    1, 6, 40], ['Ancient totem',     1, 4, 40],
+  ['Ancient statuette', 1, 2, 40], ['Ancient crystal',   1, 3, 40],
+  ['Ancient medallion', 1, 1, 40], ['Ancient effigy',    1, 1, 40],
+  ['Ancient relic',     1, 1, 40], ['Yew seed',          4, 4, 40],
+  ['Magic seed',        4, 4, 40], ['Dragon med helm',   1, 13, 40],
+];
+const SPECIAL_SKULLED = [
+  ['Ancient emblem',    1, 1, 22], ['Ancient totem',     1, 4, 22],
+  ['Ancient statuette', 1, 2, 22], ['Ancient crystal',   1, 3, 22],
+  ['Ancient medallion', 1, 1, 22], ['Ancient effigy',    1, 1, 22],
+  ['Ancient relic',     1, 1, 22], ['Yew seed',          4, 4, 22],
+  ['Magic seed',        4, 4, 22],
+];
+
+/* Blighted secondary roll (independent): rate = weight / (250 - combat). */
+const BLIGHTED = [
+  ['Blighted ancient ice sack',     5.5, 10],
+  ['Blighted entangle sack',        5.5, 20],
+  ['Blighted teleport spell sack',  5.5, 10],
+  ['Blighted vengeance sack',       5.5, 10],
+  ['Blighted manta ray',            1.5, 15],
+  ['Blighted anglerfish',           1.5, 15],
+  ['Blighted karambwan',            1.5, 10],
+  ['Blighted super restore(4)',     1,    5],
+  ['Revenant cave teleport',        1,    5],
+];
+
+/* ===================== helpers ===================== */
+const $ = id => document.getElementById(id);
+
+/* Drops the player leaves on the ground (persisted across visits). */
+let excluded = new Set();
+try { excluded = new Set(JSON.parse(localStorage.getItem('revcalc-excluded') || '[]')); } catch (e) {}
+
+function price(name) {
+  const it = ITEMS[name];
+  let ge = it.snap;
+  if (livePrices && it.id != null && livePrices[it.id] != null) ge = livePrices[it.id];
+  return Math.max(ge, it.ha || 0); // wiki convention: max(GE, high alch)
+}
+function fmtGP(n) {
+  const sign = n < 0 ? '-' : '';
+  const a = Math.abs(n);
+  if (a >= 1e9) return sign + (a / 1e9).toFixed(2) + 'b';
+  if (a >= 1e6) return sign + (a / 1e6).toFixed(2) + 'm';
+  if (a >= 1e4) return sign + (a / 1e3).toFixed(1) + 'k';
+  return sign + Math.round(a).toLocaleString('en-US');
+}
+function fmtNum(n, dp = 0) {
+  if (!isFinite(n)) return '∞';
+  return n.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+}
+function fmtHours(h) {
+  if (!isFinite(h)) return '∞';
+  if (h >= 100) return fmtNum(h) + ' h';
+  if (h >= 10) return h.toFixed(1) + ' h';
+  const whole = Math.floor(h), mins = Math.round((h - whole) * 60);
+  return whole > 0 ? whole + 'h ' + mins + 'm' : mins + 'm';
+}
+function fmtRate(r) { return r > 0 ? '1/' + fmtNum(1 / r, 1 / r < 100 ? 1 : 0) : '—'; }
+function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+
+/* Per-kill regular-loot lines (identical on and off task).
+   Returns [{name, qty, rate, gpPerKill}] grouped. */
+function regularLoot(sp, skulled) {
+  const A = sp.A;
+  const B = 15 + Math.floor(Math.pow(sp.combat + 60, 2) / 200);
+  const s = Math.floor(Math.sqrt(sp.combat));
+  const mediocreChance = (Math.min(A, B) - 1) / A;
+  const coinsChance = B < A ? (A - B) / A : 0;
+
+  const groups = { artefacts: [], main: [], supplies: [] };
+  const special = skulled ? SPECIAL_SKULLED : SPECIAL_UNSKULLED;
+  for (const [name, qty, w, of] of special)
+    groups.artefacts.push({ name, qty, rate: (1 / A) * (w / of) });
+
+  groups.main.push({ name: 'Revenant ether', qty: (s + 2) / 2, rate: 1 });
+  for (const [name, qty, w] of MEDIOCRE)
+    groups.main.push({ name, qty, rate: mediocreChance * w / 198 });
+  if (coinsChance > 0)
+    groups.main.push({ name: 'Coins', qty: (1 + 25 * s) / 2, rate: coinsChance });
+
+  for (const [name, qty, w] of BLIGHTED)
+    groups.supplies.push({ name, qty, rate: w / (250 - sp.combat) });
+
+  for (const g of Object.values(groups))
+    for (const row of g) row.gpPerKill = row.rate * row.qty * price(row.name);
+  return groups;
+}
+
+/* ===================== core model ===================== */
+function compute() {
+  const sp = SPECIES.find(s => s.key === $('species').value);
+  const kph = Math.max(0, parseFloat($('kph').value) || 0);
+  const taskChance = Math.max(0, Math.min(100, parseFloat($('taskChance').value) || 0)) / 100;
+  const skips = Math.max(0, parseFloat($('skipsPerHour').value) || 0);
+  const taskSize = Math.max(1, parseFloat($('taskSize').value) || 1);
+  const skulled = $('skulled').checked;
+  const target = document.querySelector('input[name=target]:checked').value;
+
+  // unique-table chance per kill, on task (wiki footnote denominators)
+  const uniqueOn = 1 / (skulled ? sp.onSk : sp.onUnsk);
+  const uniqueOff = uniqueOn / 5;                    // exactly 5x worse off task
+  const share = target === 'any' ? 3 / 5 : 1 / 5;    // weapons' share of the unique table
+  const rOn = uniqueOn * share;
+  const rOff = uniqueOff * share;
+
+  const kOn = 1 / rOn;
+  const kOff = 1 / rOff;                             // = 5 * kOn
+
+  const rollsPerTask = taskChance > 0 ? 1 / taskChance : Infinity;
+  const hoursPerTask = skips > 0 ? rollsPerTask / skips : Infinity;
+  const tasksNeeded = kOn / taskSize;
+  const killHoursOn = kph > 0 ? kOn / kph : Infinity;
+  const overheadOn = tasksNeeded * hoursPerTask;
+  const totalOn = killHoursOn + overheadOn;
+  const totalOff = kph > 0 ? kOff / kph : Infinity;
+
+  // break-even: skipping wins iff taskChance * skips > kph / (4 * taskSize)
+  const acqRate = taskChance * skips;                       // rev tasks per hour of skipping
+  const acqNeeded = kph > 0 ? kph / (4 * taskSize) : 0;
+  const minChance = skips > 0 && kph > 0 ? acqNeeded / skips : Infinity;
+  const minSkips = taskChance > 0 && kph > 0 ? acqNeeded / taskChance : Infinity;
+
+  return { sp, kph, taskChance, skips, taskSize, skulled, target,
+           uniqueOn, uniqueOff, rOn, rOff, kOn, kOff,
+           hoursPerTask, tasksNeeded, killHoursOn, overheadOn, totalOn, totalOff,
+           acqRate, acqNeeded, minChance, minSkips };
+}
+
+/* ===================== rendering ===================== */
+function render() {
+  const m = compute();
+  const loot = renderLoot(m);
+  renderVerdict(m, loot);
+  renderComparison(m);
+  selfTest(m);
+}
+
+function renderVerdict(m, loot) {
+  const el = $('verdict');
+  if (m.kph <= 0) {
+    el.className = 'verdict';
+    el.innerHTML = '<div class="headline">Enter a kills-per-hour value to compare.</div>';
+    return;
+  }
+  const targetName = m.target === 'any' ? 'any revenant weapon' : WEAPONS[m.target].replace(' (u)', '');
+  if (!isFinite(m.totalOn)) {
+    el.className = 'verdict slower';
+    el.innerHTML = '<div class="headline">Off task is the only option: with ' +
+      (m.taskChance <= 0 ? 'a 0% task chance' : '0 skips/hour') +
+      ', you can never acquire a revenants task.</div>' +
+      '<div class="detail">Expected ' + fmtNum(m.kOff) + ' kills (' + fmtHours(m.totalOff) + ') per ' + esc(targetName) + ' off task.</div>';
+    return;
+  }
+  const saved = m.totalOff - m.totalOn;
+  const pct = (Math.abs(saved) / m.totalOff) * 100;
+  let html;
+  if (saved >= 0) {
+    el.className = 'verdict faster';
+    html = '<div class="headline">Turael skipping is faster: saves ' + fmtHours(saved) +
+      ' per ' + esc(targetName) + ' (' + pct.toFixed(0) + '% less time)</div>' +
+      '<div class="detail">' + fmtHours(m.totalOn) + ' on task (incl. task hunting) vs ' + fmtHours(m.totalOff) + ' off task.</div>';
+  } else {
+    el.className = 'verdict slower';
+    html = '<div class="headline">Killing off task is faster: skipping loses ' + fmtHours(-saved) +
+      ' per ' + esc(targetName) + ' (+' + ((-saved / m.totalOff) * 100).toFixed(0) + '% time)</div>' +
+      '<div class="detail">' + fmtHours(m.totalOn) + ' on task (incl. task hunting) vs ' + fmtHours(m.totalOff) + ' off task. Task acquisition is eating the 5&times; drop-rate advantage.</div>';
+  }
+  html += '<div class="stat-grid">' +
+    '<div class="stat"><div class="k">Time ' + (saved >= 0 ? 'saved' : 'lost') + ' per weapon</div><div class="v">' + fmtHours(Math.abs(saved)) + '</div></div>' +
+    '<div class="stat"><div class="k">Loot forgone by skipping</div><div class="v">' + fmtGP(loot.grand) + '</div><div class="n">picked-up drops only</div></div>' +
+    '<div class="stat"><div class="k">Loot forgone &divide; hours saved</div><div class="v">' +
+      (saved > 0 ? fmtGP(loot.grand / saved) + '/hr' : '&mdash;') +
+      '</div><div class="n">' + (saved > 0 ? 'off task must beat this GP/hr to be worth the extra time' : 'skipping saves no time here') + '</div></div>' +
+    '</div>';
+  el.innerHTML = html;
+}
+
+function renderComparison(m) {
+  const rows = [
+    ['Unique table chance/kill', fmtRate(m.uniqueOn), fmtRate(m.uniqueOff)],
+    ['Target drop chance/kill', fmtRate(m.rOn), fmtRate(m.rOff)],
+    ['Expected kills to drop', fmtNum(m.kOn), fmtNum(m.kOff)],
+    ['Killing time', fmtHours(m.killHoursOn), fmtHours(m.totalOff)],
+    ['Tasks needed', fmtNum(m.tasksNeeded, 1), '—'],
+    ['Time to acquire one task', fmtHours(m.hoursPerTask), '—'],
+    ['Task-acquisition overhead', fmtHours(m.overheadOn), '—'],
+    ['<b>Total time per drop</b>', '<b>' + fmtHours(m.totalOn) + '</b>', '<b>' + fmtHours(m.totalOff) + '</b>'],
+  ];
+  $('cmpTable').innerHTML =
+    '<thead><tr><th></th><th class="cmp-on">On task (skipping)</th><th class="cmp-off">Off task</th></tr></thead><tbody>' +
+    rows.map(r => '<tr><td>' + r[0] + '</td><td class="num">' + r[1] + '</td><td class="num">' + r[2] + '</td></tr>').join('') +
+    '</tbody>';
+
+  let be = '';
+  if (m.kph > 0) {
+    be += '<p class="hint" style="grid-column:1/-1;margin:0;">Break-even: skipping beats off-task killing as long as you land rev tasks faster than kph &divide; (4 &times; task size) = <b>' +
+      fmtNum(m.acqNeeded, 2) + ' tasks/hr</b> of skipping. You currently land <b>' +
+      fmtNum(m.acqRate, 2) + '/hr</b> (task chance &times; skips/hr)' +
+      (isFinite(m.acqRate) && m.acqRate > m.acqNeeded ? ' — above break-even, so skipping wins.' : ' — below break-even, so off-task wins.') + '</p>';
+    be += stat('Break-even task chance', isFinite(m.minChance) ? (m.minChance * 100).toFixed(2) + '%' : '—',
+      'skipping is faster while your chance is above this, at your ' + fmtNum(m.skips) + ' skips/hr');
+    be += stat('Break-even skips/hr', isFinite(m.minSkips) ? fmtNum(m.minSkips, 1) : '—',
+      'skipping is faster while you skip more than this, at your ' + (m.taskChance * 100).toFixed(1) + '% task chance');
+  }
+  $('breakEven').innerHTML = be;
+  function stat(k, v, n) {
+    return '<div class="stat"><div class="k">' + k + '</div><div class="v">' + v + '</div>' +
+      (n ? '<div class="n">' + n + '</div>' : '') + '</div>';
+  }
+}
+
+function renderLoot(m) {
+  const extraKills = m.kOff - m.kOn; // = 4 * kOn
+  const targetName = m.target === 'any' ? 'any weapon' : WEAPONS[m.target].replace(' (u)', '');
+  $('lootIntro').innerHTML = 'On task you kill only ' + fmtNum(m.kOn) + ' revenants instead of ' + fmtNum(m.kOff) +
+    ' per weapon — forgoing regular loot from <b>' + fmtNum(extraKills) + ' kills (4 &times; K<sub>on</sub>)</b>. ' +
+    'Line items follow the wiki\'s average-drop-value formulas. Target: ' + esc(targetName) + '.' +
+    '<br><b>Left-click a row to toggle drops you leave on the ground</b> — they are excluded from every total.';
+
+  const groups = regularLoot(m.sp, m.skulled);
+  let html = '<thead><tr><th>Item</th><th>Rate/kill</th><th>Avg qty</th><th>Price</th><th>GP forgone</th></tr></thead><tbody>';
+  let grand = 0;
+
+  // Uniques: expected counts are identical on- and off-route, so net 0.
+  html += '<tr class="group-head"><td colspan="5">Uniques (excl. target — net difference is zero)</td></tr>';
+  const uniqueRows = [];
+  uniqueRows.push({ name: 'Amulet of avarice', share: 2 / 5 });
+  if (m.target !== 'any')
+    for (const [k, n] of Object.entries(WEAPONS))
+      if (k !== m.target) uniqueRows.push({ name: n, share: 1 / 5 });
+  for (const u of uniqueRows) {
+    const expected = m.kOn * m.uniqueOn * u.share; // == kOff * uniqueOff * share
+    html += '<tr><td>' + esc(u.name) + '</td><td class="num">' + fmtRate(m.uniqueOn * u.share) + ' / ' + fmtRate(m.uniqueOff * u.share) +
+      '</td><td class="num">1</td><td class="num">' + fmtGP(price(u.name)) +
+      '</td><td class="num">0 <span class="hint">(&asymp;' + expected.toFixed(2) + ' either way)</span></td></tr>';
+  }
+  html += '<tr class="subtotal"><td colspan="4">Uniques subtotal</td><td class="num">0</td></tr>';
+
+  const sections = [
+    ['artefacts', 'Ancient artefacts, seeds & dragon med helm'],
+    ['main', 'Main drops (alchables, runes, resources, coins)'],
+    ['supplies', 'Supplies (blighted secondary drops)'],
+  ];
+  for (const [key, label] of sections) {
+    html += '<tr class="group-head"><td colspan="5">' + label + '</td></tr>';
+    let sub = 0;
+    for (const row of groups[key]) {
+      const off = excluded.has(row.name);
+      const lost = row.gpPerKill * extraKills;
+      if (!off) sub += lost;
+      html += '<tr class="loot-row' + (off ? ' excluded' : '') + '" data-item="' + esc(row.name) +
+        '" title="' + (off ? 'Left on the ground — click to pick up again' : 'Click to leave on the ground') + '">' +
+        '<td>' + esc(row.name) + '</td><td class="num">' + fmtRate(row.rate) +
+        '</td><td class="num">' + fmtNum(row.qty, row.qty % 1 ? 1 : 0) +
+        '</td><td class="num">' + fmtGP(price(row.name)) +
+        '</td><td class="num">' + fmtGP(lost) + '</td></tr>';
+    }
+    grand += sub;
+    html += '<tr class="subtotal"><td colspan="4">Subtotal (picked-up drops)</td><td class="num">' + fmtGP(sub) + '</td></tr>';
+  }
+
+  html += '<tr class="grand"><td colspan="4">Total loot forgone per weapon by skipping</td><td class="num">' + fmtGP(grand) + '</td></tr>';
+  html += '</tbody>';
+  $('lootTable').innerHTML = html;
+  return { grand };
+}
+
+/* ===================== sanity self-tests ===================== */
+function selfTest(m) {
+  const t = [];
+  // 1. Off-task expected kills must be exactly 5x on-task.
+  t.push(['Off-task kills = 5× on-task', Math.abs(m.kOff / m.kOn - 5) < 1e-9]);
+  // 2. Rev dragon end-to-end: 1/1,066.6 unique on task -> 1/5,333 per specific weapon, ~1/26,667 off task.
+  const dragon = SPECIES.find(s => s.key === 'dragon');
+  const specOn = 1 / (1 / dragon.onUnsk / 5);
+  t.push(['Dragon: specific weapon 1/5,333 on task', Math.abs(specOn - 5333) < 1],
+         ['Dragon: specific weapon ~1/26,667 off task', Math.abs(specOn * 5 - 26665) < 10]);
+  // 3. Hardcoded denominators match the template formula A×mult (within wiki rounding).
+  const formulaOK = SPECIES.every(s => {
+    const A = Math.floor(2200 / Math.floor(Math.sqrt(s.combat)));
+    return A === s.A &&
+      Math.abs(s.onUnsk - A * 5.333) < 0.5 && Math.abs(s.offUnsk - A * 26.667) < 0.5 &&
+      Math.abs(s.onSk - A * 2.933) < 0.5 && Math.abs(s.offSk - A * 14.667) < 0.5;
+  });
+  t.push(['All species match wiki formula A=floor(2200/floor(√cb))', formulaOK]);
+  // 4. Zero-input guards produce finite or cleanly-infinite results, never NaN.
+  t.push(['0% task chance / 0 skips handled', !Number.isNaN(m.totalOn) && !Number.isNaN(m.totalOff)]);
+  $('selftest').innerHTML = '<h2>Self-checks</h2>' + t.map(([n, ok]) =>
+    '<div class="' + (ok ? 'ok' : 'fail') + '">' + (ok ? '✓' : '✗ FAIL') + ' ' + n + '</div>').join('');
+}
+
+/* ===================== live prices ===================== */
+/* The wiki asks for a descriptive User-Agent. Browsers always send their own
+   UA and forbid overriding it in fetch(); if you run this fetch server-side,
+   set e.g. "revenant-ontask-calculator - contact <you>". */
+async function refreshPrices() {
+  const status = $('priceStatus');
+  status.textContent = 'Fetching…';
+  try {
+    const res = await fetch('https://prices.runescape.wiki/api/v1/osrs/latest');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = (await res.json()).data;
+    const out = {};
+    for (const it of Object.values(ITEMS)) {
+      if (it.id == null) continue;
+      const p = data[it.id];
+      if (p && (p.high || p.low)) out[it.id] = Math.round(((p.high || p.low) + (p.low || p.high)) / 2);
+    }
+    livePrices = out;
+    status.textContent = 'Live GE prices loaded ' + new Date().toLocaleTimeString() + '.';
+  } catch (e) {
+    livePrices = null;
+    status.textContent = 'Price fetch failed (' + e.message + ') — using bundled snapshot (15 Jul 2026).';
+  }
+  render();
+}
+
+/* ===================== wiring ===================== */
+function init() {
+  const sel = $('species');
+  sel.innerHTML = SPECIES.map(s => '<option value="' + s.key + '">' + s.name + ' (lvl ' + s.combat + ')</option>').join('');
+  sel.value = 'dragon';
+  $('kph').value = SPECIES.find(s => s.key === 'dragon').kph;
+
+  sel.addEventListener('change', () => {
+    $('kph').value = SPECIES.find(s => s.key === sel.value).kph;
+    render();
+  });
+  $('extend').addEventListener('change', () => {
+    $('taskSize').value = $('extend').checked ? 125 : 70; // Krystilia: avg of 100-150 / 40-100
+    render();
+  });
+  for (const id of ['kph', 'taskChance', 'skipsPerHour', 'taskSize', 'skulled'])
+    $(id).addEventListener('input', render);
+  document.querySelectorAll('input[name=target]').forEach(r => r.addEventListener('change', render));
+  $('refreshPrices').addEventListener('click', refreshPrices);
+  $('lootTable').addEventListener('click', e => {
+    const tr = e.target.closest('tr.loot-row');
+    if (!tr) return;
+    const name = tr.dataset.item;
+    if (excluded.has(name)) excluded.delete(name); else excluded.add(name);
+    try { localStorage.setItem('revcalc-excluded', JSON.stringify([...excluded])); } catch (err) {}
+    render();
+  });
+
+  render();
+  refreshPrices(); // try live prices on load; falls back to snapshot
+}
+init();
+</script>
+</body>
+</html>
