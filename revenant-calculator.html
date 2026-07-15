@@ -207,7 +207,7 @@
         <li>Krystilia revenant tasks: 40&ndash;100 kills (avg 70), or 100&ndash;150 (avg 125) with the Revenenhanced extension. Task weight 5/196. <a href="https://oldschool.runescape.wiki/w/Krystilia" target="_blank" rel="noopener">Krystilia</a></li>
         <li>Revenants give Slayer XP &ne; max HP: it's hp &times; (1 + species XP bonus) per each species' wiki infobox — e.g. dragon 155 hp but <b>186</b> XP, hobgoblin 72 hp / 73 XP, imp 10/10.</li>
         <li>Turael filler XP assumes one completed Turael task per non-rev Krystilia roll (Turael can only replace a task once, so fillers must be finished before re-rolling). Per-task kill counts and weights from <a href="https://oldschool.runescape.wiki/w/Turael/Slayer_assignments" target="_blank" rel="noopener">Turael's assignment list</a>; XP/kill uses the variant at the wiki's suggested farming spot. Blocks are account-wide, so a blocked monster is also never assigned by Turael.</li>
-        <li>Not counted in favour of skipping: on-task kills also roll the <a href="https://oldschool.runescape.wiki/w/Wilderness_Slayer" target="_blank" rel="noopener">Wilderness Slayer tertiary table</a> (Larran's keys etc.), so the true loot gap is somewhat smaller than shown.</li>
+        <li><a href="https://oldschool.runescape.wiki/w/Larran%27s_key" target="_blank" rel="noopener">Larran's keys</a> drop only on a Krystilia task: 1/floor(99 &minus; (combat&minus;81) &times; 49/269) per kill at combat 81+ (1/89 at dragons), 1/(100 + floor(0.3&times;(80&minus;combat)&sup2;)) below. <a href="https://oldschool.runescape.wiki/w/Template:WildernessSlayerDropTable" target="_blank" rel="noopener">source</a>. Key counts are shown but their chest GP isn't added to the loot comparison; the on-task-only <a href="https://oldschool.runescape.wiki/w/Slayer%27s_enchantment" target="_blank" rel="noopener">Slayer's enchantment</a> drops also aren't counted.</li>
         <li>Tradeable drops are valued at max(GE mid-price, high alch), the wiki's convention. Ancient artefacts use GE price (Emblem Trader pays slightly more: 500k&ndash;16m).</li>
       </ul>
     </div>
@@ -405,6 +405,18 @@ const SPECIAL_SKULLED = [
   ['Magic seed',        4, 4, 22],
 ];
 
+/* Larran's key: Wilderness Slayer tertiary, rolled ONLY on-task (Krystilia).
+   source: https://oldschool.runescape.wiki/w/Template:WildernessSlayerDropTable
+   (transcluded by every revenant page's drops section)
+   chance per on-task kill = 1/denom:
+     combat < 81 : denom = 100 + floor(0.3 × (80 − combat)²)
+     81–350      : denom = floor(99 − (combat − 81) × 49/269)   e.g. dragon 1/89 */
+function larranDenom(cb) {
+  if (cb < 81) return 100 + Math.floor(0.3 * Math.pow(80 - cb, 2));
+  if (cb < 351) return Math.floor(99 - (cb - 81) * 49 / 269);
+  return 50;
+}
+
 /* Blighted secondary roll (independent): rate = weight / (250 - combat). */
 const BLIGHTED = [
   ['Blighted ancient ice sack',     5.5, 10],
@@ -544,11 +556,17 @@ function compute() {
   const revXP = kOn * sp.slayxp;
   const slayerXP = revXP + turaelXP;
 
+  // Larran's keys: tertiary rolled only on-task; off-task kills get none.
+  const keyRate = 1 / larranDenom(sp.combat);
+  const keysPerHour = kph * keyRate;          // per hour of on-task killing
+  const keysPerWeapon = kOn * keyRate;        // expected keys on the skipping route
+
   return { sp, kph, taskChance, skips, taskSize, skulled, target,
            uniqueOn, uniqueOff, rOn, rOff, kOn, kOff,
            hoursPerTask, tasksNeeded, killHoursOn, overheadOn, totalOn, totalOff,
            acqRate, acqNeeded, minChance, minSkips,
-           turaelSize, turaelXpKill, fillerTasks, turaelXP, revXP, slayerXP };
+           turaelSize, turaelXpKill, fillerTasks, turaelXP, revXP, slayerXP,
+           keyRate, keysPerHour, keysPerWeapon };
 }
 
 /* ===================== rendering ===================== */
@@ -617,6 +635,8 @@ function renderVerdict(m, loot) {
     '<div class="stat"><div class="k">Slayer XP lost off task</div><div class="v">' +
       (isFinite(m.slayerXP) ? fmtNum(m.slayerXP) : '&mdash;') +
       '</div><div class="n">rev task kills + Turael fillers</div></div>' +
+    '<div class="stat"><div class="k">Larran\'s keys lost off task</div><div class="v">' + fmtNum(m.keysPerWeapon, 1) +
+      '</div><div class="n">&asymp;' + fmtNum(m.keysPerHour, 2) + '/hr while killing on task; off task rolls none</div></div>' +
     '</div>';
   el.innerHTML = html;
 }
@@ -627,6 +647,8 @@ function renderComparison(m) {
     ['Target drop chance/kill', fmtRate(m.rOn), fmtRate(m.rOff)],
     ['Expected kills to drop', fmtNum(m.kOn), fmtNum(m.kOff)],
     ['Killing time', fmtHours(m.killHoursOn), fmtHours(m.totalOff)],
+    ['Larran\'s keys/hr while killing', fmtNum(m.keysPerHour, 2) + ' (1/' + larranDenom(m.sp.combat) + ')', '0'],
+    ['Larran\'s keys per weapon', fmtNum(m.keysPerWeapon, 1), '0'],
     ['Tasks needed', fmtNum(m.tasksNeeded, 1), '—'],
     ['Time to acquire one task', fmtHours(m.hoursPerTask), '—'],
     ['Task-acquisition overhead', fmtHours(m.overheadOn), '—'],
@@ -734,6 +756,8 @@ function selfTest(m) {
   // 5. Turael pool: weights sum to 172 (wiki assignment list) and XP is never NaN.
   t.push(['Turael task weights sum to 172', TURAEL_TASKS.reduce((a, t2) => a + t2[3], 0) === 172],
          ['Slayer XP totals never NaN', !Number.isNaN(m.slayerXP)]);
+  // 6. Larran's key: dragon (cb 135) must be 1/89 per the wildy slayer template.
+  t.push(["Larran's key 1/89 at rev dragons", larranDenom(135) === 89]);
   $('selftest').innerHTML = '<h2>Self-checks</h2>' + t.map(([n, ok]) =>
     '<div class="' + (ok ? 'ok' : 'fail') + '">' + (ok ? '✓' : '✗ FAIL') + ' ' + n + '</div>').join('');
 }
