@@ -137,6 +137,10 @@
   .selftest { font-size: 14px; color: var(--muted); }
   .selftest .ok { color: var(--good); }
   .selftest .fail { color: var(--bad); }
+  .simple-summary { display: none; font-size: 17px; color: #fff; }
+  body.simple .breakdown-detail, body.simple .hint, body.simple .stat .n,
+  body.simple .selftest, body.simple .card.foot { display: none; }
+  body.simple .simple-summary { display: block; }
   details summary { color: var(--accent); }
   details summary:hover { color: var(--value); }
 </style>
@@ -152,6 +156,10 @@
   <div>
     <div class="card">
       <h2>Inputs</h2>
+      <div class="toggle-row">
+        <input type="checkbox" id="simpleMode">
+        <label for="simpleMode">Simple mode (hide explanations &amp; breakdowns)</label>
+      </div>
       <label class="field"><span class="lbl">Revenant species</span>
         <select id="species"></select>
       </label>
@@ -225,14 +233,20 @@
 
     <div class="card">
       <h2>Slayer XP lost by hunting off task</h2>
+      <div class="simple-summary" id="xpSimple"></div>
+      <div class="breakdown-detail">
       <p class="hint" id="xpIntro" style="margin-top:0;"></p>
       <table id="xpTable"></table>
+      </div>
     </div>
 
     <div class="card">
-      <h2>Loot forgone by skipping</h2>
+      <h2>Loot lost by skipping</h2>
+      <div class="simple-summary" id="lootSimple"></div>
+      <div class="breakdown-detail">
       <p class="hint" id="lootIntro" style="margin-top:0;"></p>
       <div style="overflow-x:auto;"><table id="lootTable"></table></div>
+      </div>
     </div>
 
     <div class="card foot">
@@ -634,6 +648,7 @@ function renderSlayerXP(m) {
     ['Turael filler tasks', (fin ? fmtNum(m.fillerTasks) : '∞') + ' tasks × ' + fmtNum(m.turaelSize, 1) + ' kills × ' +
       fmtNum(m.turaelXpKill, 1) + ' XP', fin ? fmtNum(m.turaelXP) : '∞'],
   ];
+  $('xpSimple').innerHTML = (fin ? fmtNum(m.slayerXP) : '∞') + ' Slayer XP lost per weapon by hunting off task.';
   $('xpTable').innerHTML =
     '<thead><tr><th>Source</th><th>Expected</th><th>Slayer XP</th></tr></thead><tbody>' +
     rows.map(r => '<tr><td>' + r[0] + '</td><td class="num">' + r[1] + '</td><td class="num">' + r[2] + '</td></tr>').join('') +
@@ -673,8 +688,8 @@ function renderVerdict(m, loot) {
   }
   html += '<div class="stat-grid">' +
     '<div class="stat"><div class="k">Time ' + (saved >= 0 ? 'saved' : 'lost') + ' per weapon</div><div class="v">' + fmtHours(Math.abs(saved)) + '</div></div>' +
-    '<div class="stat"><div class="k">Loot forgone by skipping</div><div class="v">' + gpSpan(loot.grand) + '</div><div class="n">picked-up drops only</div></div>' +
-    '<div class="stat"><div class="k">Loot forgone &divide; hours saved</div><div class="v">' +
+    '<div class="stat"><div class="k">Loot lost by skipping</div><div class="v">' + gpSpan(loot.grand) + '</div><div class="n">picked-up drops only</div></div>' +
+    '<div class="stat"><div class="k">Loot lost &divide; hours saved</div><div class="v">' +
       (saved > 0 ? gpSpan(loot.grand / saved) + '/hr' : '&mdash;') +
       '</div><div class="n">' + (saved > 0 ? 'off task must beat this GP/hr to be worth the extra time' : 'skipping saves no time here') + '</div></div>' +
     '<div class="stat"><div class="k">Slayer XP lost off task</div><div class="v">' +
@@ -726,12 +741,12 @@ function renderLoot(m) {
   const extraKills = m.kOff - m.kOn; // = 4 * kOn
   const targetName = m.target === 'any' ? 'any weapon' : WEAPONS[m.target].replace(' (u)', '');
   $('lootIntro').innerHTML = 'On task you kill only ' + fmtNum(m.kOn) + ' revenants instead of ' + fmtNum(m.kOff) +
-    ' per weapon — forgoing regular loot from <b>' + fmtNum(extraKills) + ' kills (4 &times; K<sub>on</sub>)</b>. ' +
+    ' per weapon — losing the regular loot from <b>' + fmtNum(extraKills) + ' kills (4 &times; K<sub>on</sub>)</b>. ' +
     'Line items follow the wiki\'s average-drop-value formulas. Target: ' + esc(targetName) + '.' +
     '<br><b>Left-click a row to toggle drops you leave on the ground</b> — they are excluded from every total.';
 
   const groups = regularLoot(m.sp, m.skulled);
-  let html = '<thead><tr><th>Item</th><th>Rate/kill</th><th>Avg qty</th><th>Price</th><th>GP forgone</th></tr></thead><tbody>';
+  let html = '<thead><tr><th>Item</th><th>Rate/kill</th><th>Avg qty</th><th>Price</th><th>GP lost</th></tr></thead><tbody>';
   let grand = 0;
 
   // Uniques: expected counts are identical on- and off-route, so net 0.
@@ -772,9 +787,10 @@ function renderLoot(m) {
     html += '<tr class="subtotal"><td colspan="4">Subtotal (picked-up drops)</td><td class="num">' + gpSpan(sub) + '</td></tr>';
   }
 
-  html += '<tr class="grand"><td colspan="4">Total loot forgone per weapon by skipping</td><td class="num">' + gpSpan(grand) + '</td></tr>';
+  html += '<tr class="grand"><td colspan="4">Total loot lost per weapon by skipping</td><td class="num">' + gpSpan(grand) + '</td></tr>';
   html += '</tbody>';
   $('lootTable').innerHTML = html;
+  $('lootSimple').innerHTML = gpSpan(grand) + ' of loot lost per weapon by skipping (picked-up drops only).';
   return { grand };
 }
 
@@ -873,6 +889,14 @@ function init() {
     if (excluded.has(name)) excluded.delete(name); else excluded.add(name);
     try { localStorage.setItem('revcalc-excluded', JSON.stringify([...excluded])); } catch (err) {}
     render();
+  });
+
+  const simple = $('simpleMode');
+  try { simple.checked = localStorage.getItem('revcalc-simple') === '1'; } catch (e) {}
+  document.body.classList.toggle('simple', simple.checked);
+  simple.addEventListener('change', () => {
+    document.body.classList.toggle('simple', simple.checked);
+    try { localStorage.setItem('revcalc-simple', simple.checked ? '1' : '0'); } catch (e) {}
   });
 
   render();

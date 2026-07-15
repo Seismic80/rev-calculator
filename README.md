@@ -7,7 +7,7 @@ Decide whether hunting revenant weapon drops (Craw's bow, Thammaron's sceptre, V
 ## What it shows
 
 - On-task vs off-task time per weapon drop, including task-acquisition overhead, with a break-even analysis (minimum task chance / skips per hour for skipping to win).
-- Loot forgone by skipping (4 × K<sub>on</sub> fewer kills), itemised in the wiki's average-drop-value format with live GE prices. Left-click drops you leave on the ground to exclude them.
+- Loot lost by skipping (4 × K<sub>on</sub> fewer kills), itemised in the wiki's average-drop-value format with live GE prices. Left-click drops you leave on the ground to exclude them.
 - Slayer XP lost by hunting off task: revenant task kills + Turael filler tasks (with a block-list picker).
 - Larran's keys per hour on task, and keys lost entirely by going off task.
 
