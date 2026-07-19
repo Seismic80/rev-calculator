@@ -16,3 +16,7 @@ Decide whether hunting revenant weapon drops (Craw's bow, Thammaron's sceptre, V
 All mechanics and rates are taken from the [OSRS Wiki](https://oldschool.runescape.wiki) — chiefly [Template:Revenants/Drops](https://oldschool.runescape.wiki/w/Template:Revenants/Drops), [Template:WildernessSlayerDropTable](https://oldschool.runescape.wiki/w/Template:WildernessSlayerDropTable), [Krystilia](https://oldschool.runescape.wiki/w/Krystilia), and [Turael/Slayer assignments](https://oldschool.runescape.wiki/w/Turael/Slayer_assignments) — with source comments in the code. Live prices come from the [wiki's real-time prices API](https://prices.runescape.wiki/), with a bundled snapshot fallback. The page runs a self-check panel that re-derives every hardcoded rate from the wiki formulas.
 
 Single self-contained HTML file — no build step. Open `index.html` locally or serve it statically.
+
+## Source visibility
+
+The source is public for transparency. **All rights reserved** — no permission is granted to reuse, modify, or redistribute this code. Drop rates and game data are derived from the [OSRS Wiki](https://oldschool.runescape.wiki) (CC BY-NC-SA). Old School RuneScape is a trademark of Jagex Ltd; this project is not affiliated with or endorsed by Jagex.
